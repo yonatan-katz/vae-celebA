@@ -16,7 +16,7 @@ from utils import *
 
 pp = pprint.PrettyPrinter()
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 '''
 Tensorlayer implementation of VAE
@@ -26,7 +26,8 @@ flags = tf.app.flags
 flags.DEFINE_integer("epoch", 30, "Epoch to train [5]") 
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate of for adam [0.001]")
 flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
-flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
+#flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
+flags.DEFINE_integer("train_size", int(200e3), "The size of train images [np.inf]")
 flags.DEFINE_integer("batch_size", 64, "The number of batch images [64]")
 flags.DEFINE_integer("image_size", 148, "The size of image to use (will be center cropped) [108]")
 # flags.DEFINE_integer("decoder_output_size", 64, "The size of the output images to produce from decoder[64]")
@@ -55,7 +56,8 @@ def main(_):
     tl.files.exists_or_mkdir(FLAGS.checkpoint_dir)
     tl.files.exists_or_mkdir(FLAGS.sample_dir)
 
-    with tf.device("/gpu:0"):
+    #with tf.device("/gpu:0"):
+    if True:
         ##========================= DEFINE MODEL ===========================##
         # the input_imgs are input for both encoder and discriminator
         input_imgs = tf.placeholder(tf.float32,[FLAGS.batch_size, FLAGS.output_size, 
@@ -150,16 +152,18 @@ def main(_):
     for epoch in range(FLAGS.epoch):
         ## shuffle data
         print("[*] Dataset shuffled!")
+        print('data_files len:{}'.format(len(data_files)))
 
         minibatch = tl.iterate.minibatches(inputs=data_files, targets=data_files, batch_size=FLAGS.batch_size, shuffle=True)
         idx = 0
-        batch_idxs = min(len(data_files), FLAGS.train_size) // FLAGS.batch_size
+        batch_idxs = min(len(data_files), FLAGS.train_size) // FLAGS.batch_size        
 
-        while True:
+        #while True:
+        for batch_files in minibatch:               
             try:
-                batch_files,_ = minibatch.next()
+                #batch_files,_ = minibatch.next()
                 batch = [get_image(batch_file, FLAGS.image_size, is_crop=FLAGS.is_crop, resize_w=FLAGS.output_size, is_grayscale = 0) \
-                        for batch_file in batch_files]
+                        for batch_file in batch_files[0]]
                 batch_images = np.array(batch).astype(np.float32)
 
                 start_time = time.time()
@@ -170,10 +174,11 @@ def main(_):
                 kl, sse, errE, _ = sess.run([KL_loss,SSE_loss,VAE_loss,vae_optim], feed_dict={input_imgs: batch_images, lr_vae:vae_current_lr})
 
 
-                print("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, vae_loss:%.8f, kl_loss:%.8f, sse_loss:%.8f" \
-                        % (epoch, FLAGS.epoch, idx, batch_idxs,
-                            time.time() - start_time, errE, kl, sse))
-                sys.stdout.flush()
+                if not iter_counter % 10:
+                    print("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, vae_loss:%.8f, kl_loss:%.8f, sse_loss:%.8f" \
+                            % (epoch, FLAGS.epoch, idx, batch_idxs,
+                                time.time() - start_time, errE, kl, sse))
+                    sys.stdout.flush()
 
                 iter_counter += 1
                 # save samples
@@ -218,7 +223,7 @@ def main(_):
                 idx += 1
                 # print idx
             except StopIteration:
-                print 'one epoch finished'
+                print ('one epoch finished')
                 break
             except Exception as e:
                 raise e

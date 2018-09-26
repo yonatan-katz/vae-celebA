@@ -17,7 +17,7 @@ def encoder(input_imgs, is_train = True, reuse = False):
     gamma_init = tf.random_normal_initializer(1., 0.02)
 
     with tf.variable_scope("encoder", reuse = reuse):
-        tl.layers.set_name_reuse(reuse)
+        #tl.layers.set_name_reuse(reuse)
 
         net_in = InputLayer(input_imgs, name='en/in') # (b_size,64,64,3)
         net_h0 = Conv2d(net_in, ef_dim, (5, 5), (2, 2), act=None,
@@ -94,28 +94,28 @@ def generator(inputs, is_train = True, reuse = False):
         net_h0 = BatchNormLayer(net_h0, act=tf.nn.relu, is_train=is_train,
                 gamma_init=gamma_init, name='g/h0/batch_norm')
 
-        # upsampling
-        net_h1 = DeConv2d(net_h0, gf_dim*4, (5, 5), out_size=(s4, s4), strides=(2, 2),
-                padding='SAME', batch_size=batch_size, act=None, W_init=w_init, name='g/h1/decon2d')
+        # upsampling        
+        net_h1 = DeConv2d(net_h0, gf_dim*4, (5, 5), strides=(2, 2),
+                padding='SAME', act=None, W_init=w_init, name='g/h1/decon2d')
         net_h1 = BatchNormLayer(net_h1, act=tf.nn.relu, is_train=is_train,
                 gamma_init=gamma_init, name='g/h1/batch_norm')
         # net_h1.outputs._shape = (b_size,16,16,256)
 
-        net_h2 = DeConv2d(net_h1, gf_dim*2, (5, 5), out_size=(s2, s2), strides=(2, 2),
-                padding='SAME', batch_size=batch_size, act=None, W_init=w_init, name='g/h2/decon2d')
+        net_h2 = DeConv2d(net_h1, gf_dim*2, (5, 5),  strides=(2, 2),
+                padding='SAME',act=None, W_init=w_init, name='g/h2/decon2d')
         net_h2 = BatchNormLayer(net_h2, act=tf.nn.relu, is_train=is_train,
                 gamma_init=gamma_init, name='g/h2/batch_norm')
         # net_h2.outputs._shape = (b_size,32,32,128)
 
-        net_h3 = DeConv2d(net_h2, gf_dim//2, (5, 5), out_size=(image_size, image_size), strides=(2, 2),
-                padding='SAME', batch_size=batch_size, act=None, W_init=w_init, name='g/h3/decon2d')
+        net_h3 = DeConv2d(net_h2, gf_dim//2, (5, 5), strides=(2, 2),
+                padding='SAME', act=None, W_init=w_init, name='g/h3/decon2d')
         net_h3 = BatchNormLayer(net_h3, act=tf.nn.relu, is_train=is_train,
                 gamma_init=gamma_init, name='g/h3/batch_norm')
         # net_h3.outputs._shape = (b_size,64,64,32)
 
         # no BN on last deconv
-        net_h4 = DeConv2d(net_h3, c_dim, (5, 5), out_size=(image_size, image_size), strides=(1, 1),
-                padding='SAME', batch_size=batch_size, act=None, W_init=w_init, name='g/h4/decon2d')
+        net_h4 = DeConv2d(net_h3, c_dim, (5, 5), strides=(1, 1),
+                padding='SAME', act=None, W_init=w_init, name='g/h4/decon2d')
         # net_h4.outputs._shape = (b_size,64,64,3)
         # net_h4 = Conv2d(net_h3, c_dim, (5,5),(1,1), padding='SAME', W_init=w_init, name='g/h4/conv2d')
         logits = net_h4.outputs
