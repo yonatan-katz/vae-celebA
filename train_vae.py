@@ -84,21 +84,37 @@ def main(_):
         gen3, gen3_logits = generator(z_p, is_train=False, reuse=True)
 
         ##========================= DEFINE TRAIN OPS =======================##
-        ''''
-        reconstruction loss:
-        use the pixel-wise mean square error in image space
-        '''
-        SSE_loss = tf.reduce_mean(tf.square(gen0.outputs - input_imgs))# /FLAGS.output_size/FLAGS.output_size/3
-        '''
-        KL divergence:
-        we get z_mean,z_log_sigma_sq from encoder, then we get z from N(z_mean,z_sigma^2)
-        then compute KL divergence between z and standard normal gaussian N(0,I) 
-        '''
-        KL_loss = tf.reduce_mean(- 0.5 * tf.reduce_sum(1 + z_log_sigma_sq - tf.square(z_mean) - tf.exp(z_log_sigma_sq),1))
-
-        ### important points! ###
-        # the weight between style loss(KLD) and contend loss(pixel-wise mean square error)
-        VAE_loss = 0.005*KL_loss + SSE_loss # KL_loss isn't working well if the weight of SSE is too big
+        
+        uri_loss = False
+        if uri_loss:
+            # losses for optimization
+            kld_loss = -tf.reduce_sum(0.5 * (1 + z_log_sigma_sq - z_mean**2 - tf.exp(z_log_sigma_sq)),
+                                      axis=1)
+            # vae_recon_loss
+            const_term = 0.#32*32*3 /2 *np.log(2*np.pi*vae_gaussian_sigma)
+            vae_gaussian_sigma = 0.55
+            rec_loss = const_term + tf.reduce_sum((tf.square(gen0.outputs - input_imgs)/(2*vae_gaussian_sigma**2)), 
+                                                  axis=[1,2,3])
+            VAE_loss = tf.reduce_mean(kld_loss + rec_loss)
+        
+            # log likelihoods estimations
+            logliks = -(kld_loss + rec_loss)        
+        else:    
+            ''''
+            reconstruction loss:
+            use the pixel-wise mean square error in image space
+            '''
+            SSE_loss = tf.reduce_mean(tf.square(gen0.outputs - input_imgs))# /FLAGS.output_size/FLAGS.output_size/3
+            '''
+            KL divergence:
+            we get z_mean,z_log_sigma_sq from encoder, then we get z from N(z_mean,z_sigma^2)
+            then compute KL divergence between z and standard normal gaussian N(0,I) 
+            '''
+            KL_loss = tf.reduce_mean(- 0.5 * tf.reduce_sum(1 + z_log_sigma_sq - tf.square(z_mean) - tf.exp(z_log_sigma_sq),1))
+    
+            ### important points! ###
+            # the weight between style loss(KLD) and contend loss(pixel-wise mean square error)
+            VAE_loss = 0.005*KL_loss + SSE_loss # KL_loss isn't working well if the weight of SSE is too big
 
         e_vars = tl.layers.get_variables_with_name('encoder',True,True)
         g_vars = tl.layers.get_variables_with_name('generator', True, True)
@@ -171,13 +187,14 @@ def main(_):
 
 
                 # update
-                kl, sse, errE, _ = sess.run([KL_loss,SSE_loss,VAE_loss,vae_optim], feed_dict={input_imgs: batch_images, lr_vae:vae_current_lr})
+                #kl, sse, errE, _ = sess.run([KL_loss,SSE_loss,VAE_loss,vae_optim], feed_dict={input_imgs: batch_images, lr_vae:vae_current_lr})
+                errE, _ = sess.run([VAE_loss,vae_optim], feed_dict={input_imgs: batch_images, lr_vae:vae_current_lr})
 
 
                 if not iter_counter % 10:
-                    print("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, vae_loss:%.8f, kl_loss:%.8f, sse_loss:%.8f" \
+                    print("Epoch: [%2d/%2d] [%4d/%4d] time: %4.4f, vae_loss:%.8f" \
                             % (epoch, FLAGS.epoch, idx, batch_idxs,
-                                time.time() - start_time, errE, kl, sse))
+                                time.time() - start_time, errE,))
                     sys.stdout.flush()
 
                 iter_counter += 1
